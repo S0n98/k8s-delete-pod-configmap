@@ -15,5 +15,6 @@ func validate(w http.ResponseWriter, r *http.Request) {
 		logger.Print("Reading body failed")
 	}
 
+	logger.Print(string(bodyBytes))
 	w.Write(bodyBytes)
 }
