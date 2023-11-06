@@ -12,7 +12,7 @@ func validate(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err = io.ReadAll(r.Body)
 
 	if err != nil {
-		logger.Print("Reading body failed")
+		loggerErr.Print("Reading body failed")
 	}
 
 	logger.Print(string(bodyBytes))
