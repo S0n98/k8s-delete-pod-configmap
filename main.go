@@ -27,7 +27,7 @@ func main() {
 	flag.StringVar(&tlsCert, "tlsCertFile", "/etc/certs/tls.crt", "x509 Certificate for HTTPS.")
 	flag.StringVar(&tlsKey, "tlsKeyFile", "/etc/certs/tls.key", "x509 Key for HTTPS.")
 
-	logger.Print("Starting server on port 3000...")
+	logger.Print("Starting server on port 3443...")
 	err := http.ListenAndServeTLS(":3443", tlsCert, tlsKey, r)
 	if err != nil {
 		loggerErr.Print(err)
