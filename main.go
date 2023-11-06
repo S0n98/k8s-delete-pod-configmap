@@ -11,6 +11,7 @@ import (
 )
 
 var logger = log.New(os.Stdout, "INFO: ", log.LstdFlags)
+var loggerErr = log.New(os.Stderr, "ERR: ", log.LstdFlags)
 
 func main() {
 	var tlsCert string
@@ -23,9 +24,12 @@ func main() {
 
 	r.Post("/validate", validate)
 
-	flag.StringVar(&tlsCert, "tlsCertFile", "/etc/certs/cert.pem", "x509 Certificate for HTTPS.")
-	flag.StringVar(&tlsKey, "tlsKeyFile", "/etc/certs/cert.pem", "x509 Key for HTTPS.")
+	flag.StringVar(&tlsCert, "tlsCertFile", "/etc/certs/tls.crt", "x509 Certificate for HTTPS.")
+	flag.StringVar(&tlsKey, "tlsKeyFile", "/etc/certs/tls.key", "x509 Key for HTTPS.")
 
 	logger.Print("Starting server on port 3000...")
-	http.ListenAndServeTLS(":443", tlsCert, tlsKey, r)
+	err := http.ListenAndServeTLS(":3443", tlsCert, tlsKey, r)
+	if err != nil {
+		loggerErr.Print(err)
+	}
 }
