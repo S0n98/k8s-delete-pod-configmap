@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -20,6 +21,12 @@ import (
 type configmap struct {
 	Name      string
 	Namespace string
+}
+
+type patchStringValue struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value"`
 }
 
 var (
@@ -143,18 +150,42 @@ func deleteConfigmap(configmapsList []configmap) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		loggerErr.Println(err.Error())
+		return
 	}
 
 	// creates the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		loggerErr.Println(err.Error())
+		return
 	}
 
 	for _, cm := range configmapsList {
-		err := clientset.CoreV1().ConfigMaps(cm.Namespace).Delete(context.TODO(), cm.Name, metav1.DeleteOptions{})
-		if err != nil {
-			loggerErr.Printf("Error when delete configmap: %s , %s", cm.Name, err.Error())
+		cmDetail, cmDetailErr := clientset.CoreV1().ConfigMaps(cm.Namespace).Get(context.TODO(), cm.Name, metav1.GetOptions{})
+
+		if cmDetailErr != nil {
+			loggerErr.Println("Get configmap info error: ", cmDetailErr.Error())
+			return
+		}
+
+		if cmDetail.Labels["delete-on-pod-termination"] != "true" {
+			continue
+		}
+
+		if cmDetail.Labels["deleted"] != "true" {
+			payload := []patchStringValue{{
+				Op:    "replace",
+				Path:  "/metadata/labels/testLabel",
+				Value: "testValue",
+			}}
+			payloadBytes, _ := json.Marshal(payload)
+			clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+			continue
+		}
+
+		deleteErr := clientset.CoreV1().ConfigMaps(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
+		if deleteErr != nil {
+			loggerErr.Printf("Error when delete configmap: %s , %s", cm.Name, deleteErr.Error())
 		}
 	}
 }
