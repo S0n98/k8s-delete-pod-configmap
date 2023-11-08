@@ -123,7 +123,7 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 		}
 	}
 
-	if oldReplicaSet.Annotations["delete-configmap"] != "true" {
+	if oldReplicaSet.Labels["delete-configmap"] != "true" {
 		return &admission.AdmissionResponse{Allowed: true}
 	}
 
