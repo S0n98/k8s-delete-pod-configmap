@@ -123,7 +123,7 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 		}
 	}
 
-	if oldReplicaSet.Labels["delete-configmap"] != "true" {
+	if oldReplicaSet.Annotations["delete-configmap"] != "true" {
 		return &admission.AdmissionResponse{Allowed: true}
 	}
 
@@ -168,15 +168,15 @@ func deleteConfigmap(configmapsList []configmap) {
 			return
 		}
 
-		if cmDetail.Labels["delete-on-pod-termination"] != "true" {
+		if cmDetail.Annotations["delete-on-pod-termination"] != "true" {
 			continue
 		}
 
-		if cmDetail.Labels["deleted"] != "true" {
+		if cmDetail.Annotations["deleted"] != "true" {
 			payload := []patchStringValue{{
 				Op:    "replace",
-				Path:  "/metadata/labels/testLabel",
-				Value: "testValue",
+				Path:  "/metadata/annotations/deleted",
+				Value: "true",
 			}}
 			payloadBytes, _ := json.Marshal(payload)
 			clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
