@@ -165,7 +165,7 @@ func deleteConfigmap(configmapsList []configmap) {
 
 		if cmDetailErr != nil {
 			loggerErr.Println("Get configmap info error: ", cmDetailErr.Error())
-			return
+			continue
 		}
 
 		if cmDetail.Annotations["delete-on-pod-termination"] != "true" {
@@ -173,13 +173,16 @@ func deleteConfigmap(configmapsList []configmap) {
 		}
 
 		if cmDetail.Annotations["deleted"] != "true" {
-			payload := []patchStringValue{{
-				Op:    "replace",
-				Path:  "/metadata/annotations/deleted",
-				Value: "true",
-			}}
-			payloadBytes, _ := json.Marshal(payload)
-			clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+			jobDetail, jobDetailErr := clientset.BatchV1().Jobs(cm.Namespace).Get(context.TODO(), cm.Name, metav1.GetOptions{})
+
+			if jobDetailErr != nil {
+				loggerErr.Println("Get job create configmap info error: ", jobDetailErr.Error())
+				continue
+			}
+
+			// annotations and ownerRef to Job
+			payload := fmt.Sprintf(`{"metadata": {"annotations": {"deleted": "true"}, "ownerReferences": [{"apiVersion": "batch/v1", "blockOwnerDeletion": "true", "controller": "true", "kind": "Job", "name": "%s", "uid": "%s}]}}`, cm.Name, jobDetail.UID)
+			clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.MergePatchType, []byte(payload), metav1.PatchOptions{})
 			continue
 		}
 
