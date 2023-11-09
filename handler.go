@@ -186,10 +186,10 @@ func deleteConfigmap(configmapsList []configmap) {
 			continue
 		}
 
-		deleteErr := clientset.CoreV1().ConfigMaps(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
-		if deleteErr != nil {
-			loggerErr.Printf("Error when delete configmap: %s , %s", cm.Name, deleteErr.Error())
-		}
+		//deleteErr := clientset.CoreV1().ConfigMaps(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
+		//if deleteErr != nil {
+		//	loggerErr.Printf("Error when delete configmap: %s , %s", cm.Name, deleteErr.Error())
+		//}
 
 		deleteJobErr := clientset.BatchV1().Jobs(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
 		if deleteJobErr != nil {
