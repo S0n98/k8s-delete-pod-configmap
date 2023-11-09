@@ -173,16 +173,12 @@ func deleteConfigmap(configmapsList []configmap) {
 		}
 
 		if cmDetail.Annotations["deleted"] != "true" {
-			jobDetail, jobDetailErr := clientset.BatchV1().Jobs(cm.Namespace).Get(context.TODO(), cm.Name, metav1.GetOptions{})
-
-			if jobDetailErr != nil {
-				loggerErr.Println("Get job create configmap info error: ", jobDetailErr.Error())
-				continue
-			}
-
 			// annotations and ownerRef to Job
-			payload := fmt.Sprintf(`{"metadata": {"annotations": {"deleted": "true"}, "ownerReferences": [{"apiVersion": "batch/v1", "blockOwnerDeletion": "true", "controller": "true", "kind": "Job", "name": "%s", "uid": "%s}]}}`, cm.Name, jobDetail.UID)
-			clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.MergePatchType, []byte(payload), metav1.PatchOptions{})
+			payload := `{"metadata": {"annotations": {"deleted": "true"}}}`
+			_, patchError := clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.MergePatchType, []byte(payload), metav1.PatchOptions{})
+			if patchError != nil {
+				loggerErr.Println("Patch configmap info error: ", patchError.Error())
+			}
 			continue
 		}
 
