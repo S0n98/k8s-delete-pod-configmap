@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 
 	admission "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -112,10 +112,14 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 		}
 	}
 
-	if oldConfigmap.Labels["ftech.rollouts.config"] == "true" {
+	if oldConfigmap.Labels["ftech.rollouts.promoted"] == "true" {
 		return &admission.AdmissionResponse{Allowed: true}
 	}
-	deleteConfigmap(oldConfigmap.Namespace, oldConfigmap.Labels["ftech.rollouts.app"])
+
+	if oldConfigmap.Labels["ftech.rollouts.app"] != "" {
+		fmt.Printf("Processing argocd app: %s", oldConfigmap.Labels["ftech.rollouts.app"])
+		deleteConfigmap(oldConfigmap.Namespace, oldConfigmap.Labels["ftech.rollouts.app"])
+	}
 
 	return &admission.AdmissionResponse{Allowed: true}
 }
@@ -134,41 +138,30 @@ func deleteConfigmap(namespace string, appName string) {
 		return
 	}
 
-	cmList, cmDetailErr := clientset.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: `{""}`})
+	labelCondition := fmt.Sprintf(`"ftech.rollouts.app=%s"`, appName)
+
+	configMapList, cmDetailErr := clientset.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelCondition})
 
 	if cmDetailErr != nil {
-		loggerErr.Println("Get configmap info error: ", cmDetailErr.Error())
-		continue
+		loggerErr.Println("List configmap info error: ", cmDetailErr.Error())
+		return
 	}
 
-	for _, cm := range configmapsList {
-		cmDetail, cmDetailErr := clientset.CoreV1().ConfigMaps(cm.Namespace).Get(context.TODO(), cm.Name, metav1.GetOptions{})
+	configMaps := configMapList.Items[:]
+	sort.Slice(configMaps, func(i, j int) bool {
+		return configMaps[i].CreationTimestamp.Before(&configMaps[j].CreationTimestamp)
+	})
 
-		if cmDetailErr != nil {
-			loggerErr.Println("Get configmap info error: ", cmDetailErr.Error())
-			continue
-		}
+	fmt.Print(configMaps)
 
-		if cmDetail.Annotations["delete-on-pod-termination"] != "true" {
-			continue
-		}
-
-		if cmDetail.Annotations["deleted"] != "true" {
-			// annotations and ownerRef to Job
-			payload := `{"metadata": {"annotations": {"deleted": "true"}}}`
-			_, patchError := clientset.CoreV1().ConfigMaps(cm.Namespace).Patch(context.TODO(), cm.Name, types.MergePatchType, []byte(payload), metav1.PatchOptions{})
-			if patchError != nil {
-				loggerErr.Println("Patch configmap info error: ", patchError.Error())
-			}
-			continue
-		}
-
-		//deleteErr := clientset.CoreV1().ConfigMaps(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
-		//if deleteErr != nil {
-		//	loggerErr.Printf("Error when delete configmap: %s , %s", cm.Name, deleteErr.Error())
-		//}
-
+	if len(configMaps) < 4 {
+		return
+	}
+	for _, cm := range configMaps[3:] {
 		deleteJobErr := clientset.BatchV1().Jobs(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
+
+		logger.Printf("Deleted configmap, job %s", cm.Name)
+
 		if deleteJobErr != nil {
 			loggerErr.Printf("Error when delete job: %s , %s", cm.Name, deleteJobErr.Error())
 		}
