@@ -113,7 +113,7 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 		}
 	}
 
-	if oldConfigmap.Labels["ftech.rollouts.promoted"] == "true" {
+	if oldConfigmap.Annotations["ftech.rollouts.promoted"] == "true" {
 		return &admission.AdmissionResponse{Allowed: true}
 	}
 
