@@ -119,13 +119,13 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 
 	if oldConfigmap.Labels["ftech.rollouts.app"] != "" {
 		logger.Printf("Processing argocd app: %s", oldConfigmap.Labels["ftech.rollouts.app"])
-		deleteConfigmap(oldConfigmap.Namespace, oldConfigmap.Labels["ftech.rollouts.app"])
+		cleanUpResource(oldConfigmap.Namespace, oldConfigmap.Labels["ftech.rollouts.app"])
 	}
 
 	return &admission.AdmissionResponse{Allowed: true}
 }
 
-func deleteConfigmap(namespace string, appName string) {
+func cleanUpResource(namespace string, appName string) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		loggerErr.Println(err.Error())
@@ -141,6 +141,27 @@ func deleteConfigmap(namespace string, appName string) {
 
 	labelCondition := fmt.Sprintf("ftech.rollouts.app=%s", appName)
 
+	podsList, podDetailErr := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelCondition})
+
+	if podDetailErr != nil {
+		loggerErr.Println("List pod info error: ", podDetailErr.Error())
+		return
+	}
+
+	for _, pod := range podsList.Items {
+		deletePodErr := clientset.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
+
+		logger.Printf("Deleted pod %s", pod.Name)
+
+		if deletePodErr != nil {
+			if strings.Contains(deletePodErr.Error(), "not found") {
+				continue
+			}
+
+			loggerErr.Printf("Error when delete pod: %s , %s", pod.Name, deletePodErr.Error())
+		}
+	}
+
 	configMapList, cmDetailErr := clientset.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelCondition})
 
 	if cmDetailErr != nil {
@@ -155,13 +176,13 @@ func deleteConfigmap(namespace string, appName string) {
 
 	logger.Print(configMaps)
 
-	if len(configMaps) < 4 {
+	if len(configMaps) < 6 {
 		return
 	}
 
 	backgroundDeletetion := metav1.DeletePropagationBackground
 
-	for _, cm := range configMaps[:len(configMaps)-3] {
+	for _, cm := range configMaps[:len(configMaps)-5] {
 		deleteJobErr := clientset.BatchV1().Jobs(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{PropagationPolicy: &backgroundDeletetion})
 
 		logger.Printf("Deleted configmap, job %s", cm.Name)
