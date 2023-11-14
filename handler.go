@@ -117,7 +117,7 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 	}
 
 	if oldConfigmap.Labels["ftech.rollouts.app"] != "" {
-		fmt.Printf("Processing argocd app: %s", oldConfigmap.Labels["ftech.rollouts.app"])
+		logger.Printf("Processing argocd app: %s", oldConfigmap.Labels["ftech.rollouts.app"])
 		deleteConfigmap(oldConfigmap.Namespace, oldConfigmap.Labels["ftech.rollouts.app"])
 	}
 
@@ -152,11 +152,12 @@ func deleteConfigmap(namespace string, appName string) {
 		return configMaps[i].CreationTimestamp.Before(&configMaps[j].CreationTimestamp)
 	})
 
-	fmt.Print(configMaps)
+	logger.Print(configMaps)
 
 	if len(configMaps) < 4 {
 		return
 	}
+
 	for _, cm := range configMaps[3:] {
 		deleteJobErr := clientset.BatchV1().Jobs(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
 
