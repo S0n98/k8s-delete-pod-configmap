@@ -138,7 +138,7 @@ func deleteConfigmap(namespace string, appName string) {
 		return
 	}
 
-	labelCondition := fmt.Sprintf(`"ftech.rollouts.app=%s"`, appName)
+	labelCondition := fmt.Sprintf("ftech.rollouts.app=%s", appName)
 
 	configMapList, cmDetailErr := clientset.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelCondition})
 
