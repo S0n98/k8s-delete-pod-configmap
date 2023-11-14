@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strings"
 
 	admission "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -158,12 +159,18 @@ func deleteConfigmap(namespace string, appName string) {
 		return
 	}
 
-	for _, cm := range configMaps[3:] {
-		deleteJobErr := clientset.BatchV1().Jobs(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{})
+	backgroundDeletetion := metav1.DeletePropagationBackground
+
+	for _, cm := range configMaps[:len(configMaps)-3] {
+		deleteJobErr := clientset.BatchV1().Jobs(cm.Namespace).Delete(context.Background(), cm.Name, metav1.DeleteOptions{PropagationPolicy: &backgroundDeletetion})
 
 		logger.Printf("Deleted configmap, job %s", cm.Name)
 
 		if deleteJobErr != nil {
+			if strings.Contains(deleteJobErr.Error(), "not found") {
+				continue
+			}
+
 			loggerErr.Printf("Error when delete job: %s , %s", cm.Name, deleteJobErr.Error())
 		}
 	}
