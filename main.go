@@ -16,6 +16,8 @@ var loggerErr = log.New(os.Stderr, "ERR: ", log.LstdFlags)
 func main() {
 	var tlsCert string
 	var tlsKey string
+
+	// init servemux
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +26,7 @@ func main() {
 
 	r.Post("/validate", validate)
 
+	// import cert and key from k8s secret
 	flag.StringVar(&tlsCert, "tlsCertFile", "/etc/certs/tls.crt", "x509 Certificate for HTTPS.")
 	flag.StringVar(&tlsKey, "tlsKeyFile", "/etc/certs/tls.key", "x509 Key for HTTPS.")
 

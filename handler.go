@@ -45,7 +45,7 @@ func validate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	//// verify the content type is accurate
+	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 
 	if contentType != "application/json" {
@@ -53,11 +53,10 @@ func validate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//bodyBytes = []byte(``)
-
 	logger.Printf("Handling request: %s", string(bodyBytes))
 	var responseObj runtime.Object
 
+	// decode body parse to admission.AdmissionReview
 	if obj, gvk, err := deserializer.Decode(bodyBytes, nil, nil); err != nil {
 		msg := fmt.Sprintf("Request could not be decoded: %v", err)
 		loggerErr.Print(msg)
@@ -70,6 +69,9 @@ func validate(w http.ResponseWriter, r *http.Request) {
 			loggerErr.Printf("Expected v1.AdmissionReview but got: %T", obj)
 			return
 		}
+
+		// create response body
+
 		responseAdmissionReview := &admission.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
 		responseAdmissionReview.Response = extendedTask(*requestedAdmissionReview)
@@ -89,9 +91,11 @@ func validate(w http.ResponseWriter, r *http.Request) {
 }
 
 func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
+
 	rawObject := ar.Request.Object.Raw
 	rawOldObject := ar.Request.OldObject.Raw
 
+	// get old, new configmap
 	newConfigmap := corev1.ConfigMap{}
 	oldConfigmap := corev1.ConfigMap{}
 
@@ -113,9 +117,13 @@ func extendedTask(ar admission.AdmissionReview) *admission.AdmissionResponse {
 		}
 	}
 
+	// only handle when configmap's annotation 'ftech.rollouts.promoted: false'
+
 	if oldConfigmap.Annotations["ftech.rollouts.promoted"] == "true" {
 		return &admission.AdmissionResponse{Allowed: true}
 	}
+
+	// get rollouts app name from annotations and clean up resources
 
 	if oldConfigmap.Labels["ftech.rollouts.app"] != "" {
 		logger.Printf("Processing argocd app: %s", oldConfigmap.Labels["ftech.rollouts.app"])
@@ -139,8 +147,10 @@ func cleanUpResource(namespace string, appName string) {
 		return
 	}
 
+	// create list option
 	labelCondition := fmt.Sprintf("ftech.rollouts.app=%s", appName)
 
+	// get list pod by rollout's app name created by argocd webhook
 	podsList, podDetailErr := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelCondition})
 
 	if podDetailErr != nil {
@@ -149,6 +159,7 @@ func cleanUpResource(namespace string, appName string) {
 	}
 
 	for _, pod := range podsList.Items {
+		// delete all pod found
 		deletePodErr := clientset.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
 
 		logger.Printf("Deleted pod %s", pod.Name)
@@ -162,6 +173,7 @@ func cleanUpResource(namespace string, appName string) {
 		}
 	}
 
+	// list all configmap by rollout's app name
 	configMapList, cmDetailErr := clientset.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelCondition})
 
 	if cmDetailErr != nil {
@@ -169,6 +181,7 @@ func cleanUpResource(namespace string, appName string) {
 		return
 	}
 
+	// delete all configmap except 5 latest created.
 	configMaps := configMapList.Items[:]
 	sort.Slice(configMaps, func(i, j int) bool {
 		return configMaps[i].CreationTimestamp.Before(&configMaps[j].CreationTimestamp)
